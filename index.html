@@ -1,26 +1,290 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>India Subdivisions in Three.js</title>
+    <meta charset="utf-8">
+    <title>India's Monthly Rainfall | Abigale Tucker</title>
     <style>
-      :root { color-scheme: dark; }
-      html, body { height: 100%; margin: 0; }
-      body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background: #0b0e13; }
-      #app { position: fixed; inset: 0; }
-      #hud { position: fixed; top: 12px; left: 12px; padding: 8px 10px; background: rgba(20,24,31,0.8); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; font-size: 14px; backdrop-filter: blur(6px); }
-      #hud code { padding: 2px 6px; background: rgba(255,255,255,0.06); border-radius: 6px; }
-      a { color: #9ad; text-decoration: none; }
+      body { margin: 0; overflow: hidden; }
+
+      #legend {
+        position: absolute;
+        top: 5px;
+        right: 10px;
+        background: rgba(0,0,0,0.7);
+        padding: 10px 15px;
+        border-radius: 8px;
+        color: white;
+        font-family: sans-serif;
+        font-size: 14px;
+        z-index: 10;
+      }
+
+      #legend h3 {
+        margin-top: 0;
+        font-size: 16px;
+        margin-bottom: 8px;
+      }
+
+      .legend-item {
+        display: flex;
+        align-items: center;
+        margin-bottom: 5px;
+      }
+
+      .legend-item span {
+        width: 16px;
+        height: 16px;
+        margin-right: 8px;
+        border-radius: 3px;
+        display: inline-block;
+      }
+
+      #subd {
+        position: absolute;
+        top: 140px;
+        right: 10px;
+        background: rgba(0,0,0,0.7);
+        padding: 10px 15px;
+        border-radius: 8px;
+        color: white;
+        font-family: sans-serif;
+        font-size: 14px;
+        z-index: 10;
+      }
+
+      #subd h3 {
+        margin-top: 0;
+        font-size: 16px;
+        margin-bottom: 8px;
+      }
+
+      .subd-item {
+        display: flex;
+        align-items: center;
+        margin-bottom: 5px;
+      }
+
+      .subd-item span {
+        width: 16px;
+        height: 16px;
+        margin-right: 8px;
+        border-radius: 3px;
+        display: inline-block;
+      }
+
+      #yearSelect {
+        position: absolute;
+        left: 10px;
+        z-index: 10;
+        padding: 5px;
+        font-size: 14px;
+      }
+
+      #yearSelect { top: 45px; }
+
+      #timelineContainer {
+        position: absolute;
+        bottom: 30px;
+        left: 43%;
+        transform: translateX(-50%);
+        width: 80%;
+        height: 30px;
+        background-color: transparent;
+        z-index: 10;
+      }
+
+      #timelineBar {
+        display: flex;
+        height: 10px;
+        width: 100%;
+        border: 1px solid #ccc;
+        box-shadow: 0 0 5px rgba(0,0,0,0.2);
+      }
+
+      .timeline-segment { flex: 1; }
+
+      #timelineIndicator {
+        position: absolute;
+        top: 0;
+        width: 2px;
+        height: 30px;
+        background-color: white;
+        transition: left 0.3s ease-in-out;
+      }
+
+      #timelineLabels {
+        display: flex;
+        justify-content: space-between;
+        font-size: 10px;
+        color: white;
+        padding-top: 5px;
+        font-family: sans-serif;
+        text-align: center;
+        width: 100%;
+      }
+
+      #timelineLabels div { flex: 1; }
+
+      /* Home button style */
+      #homeBtn {
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        padding: 8px 14px;
+        background-color: #333;
+        color: white;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        font-family: sans-serif;
+        font-size: 14px;
+        transition: background 0.2s;
+        z-index: 11;
+      }
+      #homeBtn:hover { background-color: #555; }
+
+      #title {
+        position: absolute;
+        top: 40px;
+        right: 400px;
+        background: rgba(0,0,0,0.7);
+        padding: 10px 15px;
+        border-radius: 8px;
+        color: white;
+        font-family: sans-serif;
+        font-size: 20px;
+        z-index: 10;
+      }
+
+      #title h3 {
+        margin-top: 0;
+        font-size: 20px;
+        margin-bottom: 8px;
+      }
+
+
+      #credits {
+        position: absolute;
+        bottom: 8px;
+        left: 10px;
+        font-size: 11px;
+        font-family: sans-serif;
+        color: rgba(255,255,255,0.7);
+        background: rgba(0,0,0,0.5);
+        padding: 4px 8px;
+        border-radius: 4px;
+        z-index: 20;
+      }
+      #credits a {
+        color: #a3c9ff;
+        text-decoration: none;
+      }
+      #credits a:hover {
+        text-decoration: underline;
+      }
+
+      #description {
+        position: absolute;
+        top: 75px;
+        left: 15%;
+        transform: translateX(-50%);
+        max-width: 600px;
+        background: rgba(0,0,0,0.65);
+        padding: 10px 15px;
+        border-radius: 6px;
+        color: #f0f0f0;
+        font-family: sans-serif;
+        font-size: 14px;
+        line-height: 1.4em;
+        text-align: center;
+        z-index: 20;
+      }
+          
     </style>
   </head>
+
   <body>
-    <div id="app"></div>
-    <div id="hud">Place your TopoJSON file at <code>/india_subdivisions.topo.json</code> (or in <code>/public/</code> for Vite).
-      <br/>This page loads <code>src/main.js</code> as a module and renders subdivision outlines.
+    <button id="homeBtn">Back to Home</button>
+
+    <select id="yearSelect"></select>
+
+    <div id="title">
+      <h3>India’s Monthly Rainfall Across Subdivisions (1901–2017)</h3>
     </div>
 
-    <!-- Use a local dev server so fetch() works; for Vite, this is fine -->
-    <script type="module" src="main.js"></script>
+    <div id="credits">
+      Sources: India Meteorological Department (IMD), Ministry of Earth Sciences, Government of India — via 
+      <a href="https://data.gov.in/resource/sub-divisional-monthly-rainfall-1901-2017" target="_blank">data.gov.in</a>
+    </div>
+
+    <div id="description">
+      <p>
+        This visualization shows how rainfall patterns have varied across India’s
+        meteorological subdivisions from 1901–2017. Each fern represents a
+        subdivision, with density and color reflecting monthly rainfall amounts.
+      </p>
+    </div>
+
+    <div id="legend">
+      <h3>Rainfall Legend</h3>
+      <div class="legend-item"><span style="background:#a56c34"></span> ≤ 50 mm (Dire Low)</div>
+      <div class="legend-item"><span style="background:#96ad2f"></span> 51–100 mm (Manageable)</div>
+      <div class="legend-item"><span style="background:#3ba84d"></span> 101–200 mm (Healthy)</div>
+      <div class="legend-item"><span style="background:#1f6e2c"></span> 201–300 mm (Heavy)</div>
+      <div class="legend-item"><span style="background:#325c49"></span> > 300 mm (Flood)</div>
+    </div>
+
+    <div id="subd">
+      <h3>Subdivision Legend</h3>
+      <div class="subd-item"> 1: Andaman & Nicobar Islands</div>
+      <div class="subd-item"> 2: Arunachal Pradesh</div>
+      <div class="subd-item"> 3: Assam & Meghalaya</div>
+      <div class="subd-item"> 4: Nagaland, Manipur, Mizoram & Tripura</div>
+      <div class="subd-item"> 5: Sub-Himalayan West Bengal & Sikkim</div>
+      <div class="subd-item"> 6: Gangetic West Bengal</div>
+      <div class="subd-item"> 7: Odisha</div>
+      <div class="subd-item"> 8: Jharkhand</div>
+      <div class="subd-item"> 9: Bihar</div>
+      <div class="subd-item"> 10: East Uttar Pradesh</div>
+      <div class="subd-item"> 11: West Uttar Pradesh</div>
+      <div class="subd-item"> 12: Uttarakhand</div>
+      <div class="subd-item"> 13: Haryana, Delhi & Chandigarh</div>
+      <div class="subd-item"> 14: Punjab</div>
+      <div class="subd-item"> 15: Himachal Pradesh</div>
+      <div class="subd-item"> 16: Jammu, Kashmir & Ladakh</div>
+      <div class="subd-item"> 17: West Rajasthan</div>
+      <div class="subd-item"> 18: East Rajasthan</div>
+      <div class="subd-item"> 19: West Madhya Pradesh</div>
+      <div class="subd-item"> 20: East Madhya Pradesh</div>
+      <div class="subd-item"> 21: Gujarat</div>
+      <div class="subd-item"> 22: Saurashtra & Kutch</div>
+      <div class="subd-item"> 23: Konkan & Goa</div>
+      <div class="subd-item"> 24: Madhya Maharashtra</div>
+      <div class="subd-item"> 25: Marathwada</div>
+      <div class="subd-item"> 26: Vidarbha</div>
+      <div class="subd-item"> 27: Chhattisgarh</div>
+      <div class="subd-item"> 28: Coastal Andhra Pradesh</div>
+      <div class="subd-item"> 29: Telangana</div>
+      <div class="subd-item"> 30: Rayalaseema</div>
+      <div class="subd-item"> 31: Tamil Nadu & Ponducherry</div>
+      <div class="subd-item"> 32: Coastal Karnataka</div>
+      <div class="subd-item"> 33: North Interior Karnataka</div>
+      <div class="subd-item"> 34: South Interior Karnataka</div>
+      <div class="subd-item"> 35: Kerala</div>
+      <div class="subd-item"> 36: Lakshadweep</div>
+    </div>
+
+    <div id="timelineContainer">
+      <div id="timelineBar"></div>
+      <div id="timelineLabels"></div>
+      <div id="timelineIndicator"></div>
+    </div>
+    <div id="app" style="width:100vw;height:100vh;overflow:hidden;"></div>
+    <script type="module" src="/main.js"></script>
+    <script>
+      document.getElementById("homeBtn").onclick = function() {
+        window.location.href = "https://teletraanx.github.io/";
+      };
+    </script>
   </body>
 </html>
