@@ -3,7 +3,7 @@ import { feature as topoFeature } from 'https://cdn.jsdelivr.net/npm/topojson-cl
 import * as d3geo from 'https://cdn.jsdelivr.net/npm/d3-geo@3/+esm';
 
 const FILE_URL = './india_subdivisions.topo.json';
-const CSV_URL  = '/RainfallDataClean.csv';
+const CSV_URL  = './RainfallDataClean.csv';
 
 const MONTHS   = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
 const YEAR_COL = "YEAR";
