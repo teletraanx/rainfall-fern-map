@@ -15,35 +15,31 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
 app.appendChild(renderer.domElement);
 
 const scene    = new THREE.Scene();
-let camera;                            // Orthographic, created in onResize()
-const mapGroup = new THREE.Group();    // your outlines + labels
+let camera;                            
+const mapGroup = new THREE.Group();    
 scene.add(mapGroup);
 
-// NEW: root for all ferns (drawn above map)
 const fernsRoot = new THREE.Group();
-fernsRoot.position.z = 1;              // labels use depthTest=false; z=1 keeps order clear
+fernsRoot.position.z = 1;              
 scene.add(fernsRoot);
 
-// DATA STATE
 let geojson = null;
-let currentProjection = null;          // keep the projection we used last rebuild
-let anchors = new Map();               // subdivision -> THREE.Vector3 (screen/world coords)
+let currentProjection = null;          
+let anchors = new Map();               
 
-// Rain data state
-let dataBySubdivision = new Map();     // name -> [{YEAR, JAN..DEC}, sorted]
-let subdivisionList   = [];            // stable order
-let yearList          = [];            // sorted union of all years
+let dataBySubdivision = new Map();     
+let subdivisionList   = [];            
+let yearList          = [];            
 
-let fernMeshes = [];                   // THREE.Points per subdivision
+let fernMeshes = [];                   
 let monthIndex = 0, yearIndex = 0;
 let tickMs = 1200;
 let lastTime = 0;
 
-// Normalize subdivision names so CSV <-> topo keys match.
 const norm = s => (s ?? "")
   .toLowerCase()
-  .replace(/\s+/g, " ")        // collapse spaces
-  .replace(/[^\w& ]/g, "")     // drop punctuation except &
+  .replace(/\s+/g, " ")        
+  .replace(/[^\w& ]/g, "")     
   .trim();
 
 const NAME_ALIASES = {
@@ -86,24 +82,21 @@ const NAME_ALIASES = {
 };
 
 const ANCHOR_OVERRIDES = {
-  
+  //
 };
 
-// Build a normalized override map once
 const overrideMap = new Map(
   Object.entries(ANCHOR_OVERRIDES).map(([k, v]) => [norm(k), v])
 );
 
-// Per-subdivision (normalized key) scale overrides
 const scaleBySubdivision = new Map();
 const DEFAULT_SCALE = 0.25;
 
-// Build reverse alias: topoKey -> csvKey (both normalized)
 const REVERSE_ALIASES = Object.fromEntries(
   Object.entries(NAME_ALIASES).map(([csvKey, topoKey]) => [topoKey, csvKey])
 );
 
-// -------------- LOADERS --------------
+//-------------- LOADERS --------------
 async function loadBoundaries(url) {
   const resp = await fetch(url);
   if (!resp.ok) throw new Error('Failed to load ' + url + ' (' + resp.status + ')');
@@ -118,7 +111,6 @@ async function loadBoundaries(url) {
 
 async function loadCSVRows(url) {
   const text = await (await fetch(url)).text();
-  // tiny CSV parser (no external dep): split lines + headers
   const lines = text.split(/\r?\n/).filter(Boolean);
   const headers = lines[0].split(',').map(h => h.trim());
   const rows = [];
@@ -131,10 +123,9 @@ async function loadCSVRows(url) {
   }
   return rows;
 }
-// handles simple CSV (no embedded quotes/commas). Replace with Papa if needed.
 function splitCSVLine(line) { return line.split(',').map(v => v.trim()); }
 
-// -------------- MAP BUILD --------------
+//-------------- MAP BUILD --------------
 function buildOutlineGeometry(geo, projection, width, height) {
   const verts = [];
   function project(lonlat) {
@@ -150,7 +141,7 @@ function buildOutlineGeometry(geo, projection, width, height) {
       verts.push(prev.x, prev.y, 0, p.x, p.y, 0);
       prev = p;
     }
-    verts.push(prev.x, prev.y, 0, first.x, first.y, 0); // close
+    verts.push(prev.x, prev.y, 0, first.x, first.y, 0); 
   }
   for (const f of geo.features) {
     const g = f.geometry;
@@ -201,21 +192,18 @@ function makeLabelSprites(geo, projection, width, height) {
 }
 
 function makeTextSprite(text, { fontSize = 14, pad = 4 } = {}) {
-  const dpr = Math.min(window.devicePixelRatio || 1, 2); // keep it sane
+  const dpr = Math.min(window.devicePixelRatio || 1, 2); 
 
-  // First pass: measure at CSS pixels
   const measure = document.createElement('canvas').getContext('2d');
   measure.font = `${fontSize}px system-ui, -apple-system, Segoe UI, Roboto, sans-serif`;
   const wCss = Math.ceil(measure.measureText(text).width) + pad * 2;
   const hCss = fontSize + pad * 2 + 2;
 
-  // Real canvas at DPR resolution
   const canvas = document.createElement('canvas');
   canvas.width  = Math.max(1, Math.floor(wCss * dpr));
   canvas.height = Math.max(1, Math.floor(hCss * dpr));
 
   const ctx = canvas.getContext('2d');
-  // draw in CSS pixel space by scaling the context
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.font = measure.font;
   ctx.textBaseline = 'top';
@@ -231,8 +219,8 @@ function makeTextSprite(text, { fontSize = 14, pad = 4 } = {}) {
   // texture
   const tex = new THREE.CanvasTexture(canvas);
   tex.minFilter = THREE.LinearFilter;
-  tex.magFilter = THREE.LinearFilter;      // or THREE.NearestFilter for ultra-crisp pixels
-  tex.generateMipmaps = false;             // avoid mipmap blurring
+  tex.magFilter = THREE.LinearFilter;      
+  tex.generateMipmaps = false;             
   tex.needsUpdate = true;
 
   const mat = new THREE.SpriteMaterial({
@@ -243,7 +231,6 @@ function makeTextSprite(text, { fontSize = 14, pad = 4 } = {}) {
   });
 
   const spr = new THREE.Sprite(mat);
-  // scale in CSS pixels (undo the DPR upscaling)
   spr.scale.set(wCss, hCss, 1);
   return spr;
 }
@@ -278,17 +265,14 @@ function rebuildMap() {
   mapGroup.add(outlineMesh);
   mapGroup.add(labels);
 
-  // (Re)build anchors whenever map/projection changes
   rebuildAnchorsFromMap(w, h);
-  // If ferns already exist, snap them to updated anchors
   applyAnchorsToFerns();
 }
 
-// -------------- ANCHORS FROM MAP --------------
+//-------------- ANCHORS FROM MAP --------------
 function rebuildAnchorsFromMap(w, h) {
   anchors.clear();
 
-  // Rebuild overrideMap each time (safe)
   const overrideMap = new Map(
     Object.entries(ANCHOR_OVERRIDES).map(([k, v]) => [norm(k), v])
   );
@@ -298,17 +282,14 @@ function rebuildAnchorsFromMap(w, h) {
     const rawName = getName(f.properties);
     if (!rawName) continue;
 
-    // Topo-normalized key
     let topoKey = norm(rawName);
 
-    // If you alias topo->canonical, apply here (rarely needed)
     if (NAME_ALIASES[topoKey]) topoKey = NAME_ALIASES[topoKey];
 
     const [cx, cy] = path.centroid(f);
     const pos = new THREE.Vector3(cx - w/2, -cy + h/2, 0);
 
-    // 🔑 Try override by TOPO key, then by CSV key via reverse alias
-    const csvKey = REVERSE_ALIASES[topoKey]; // e.g. norm("andaman & nicobar islands")
+    const csvKey = REVERSE_ALIASES[topoKey];
     const ov = overrideMap.get(topoKey) || (csvKey ? overrideMap.get(csvKey) : undefined);
 
     if (ov) {
@@ -325,7 +306,7 @@ function anchorFor(name) {
   return anchors.get(key) || new THREE.Vector3(0, 0, 0);
 }
 
-// -------------- FERNS --------------
+//-------------- FERNS --------------
 function chooseStyle(value) {
   if (!Number.isFinite(value)) return ["#555555", 5000];
   if (value <= 50)   return ["#a56c34", 1000];
@@ -349,7 +330,7 @@ function buildFernGeometryForValue(value) {
   const colors    = new Float32Array(numPoints * 3);
 
   let x = 0, y = 0;
-  const SCALE = 34;      // tuned for your ortho/pixel world
+  const SCALE = 34;      
   const Y_OFF = -40;
 
   for (let i = 0; i < numPoints; i++) {
@@ -395,7 +376,6 @@ function setFernValue(mesh, value) {
   old.dispose();
 }
 
-// Build data + ferns once CSV is ready
 function ingestRainRows(rows) {
   const tmp = new Map();
   for (const row of rows) {
@@ -423,8 +403,8 @@ function ingestRainRows(rows) {
   buildYearSelect();
   buildTimeline();
 
-  buildAllFerns();       // create meshes (uses anchors if map built)
-  updateAllFerns();      // set initial month/year values
+  buildAllFerns();       
+  updateAllFerns();      
 }
 
 function valueFor(subdivision, y, m) {
@@ -432,7 +412,6 @@ function valueFor(subdivision, y, m) {
   if (!arr || arr.length === 0) return NaN;
   let row = arr.find(r => Number(r[YEAR_COL]) === y);
   if (!row) {
-    // fallback: nearest previous year, else first
     for (let i = arr.length - 1; i >= 0; i--) {
       const ry = Number(arr[i][YEAR_COL]);
       if (ry <= y) { row = arr[i]; break; }
@@ -443,7 +422,6 @@ function valueFor(subdivision, y, m) {
 }
 
 function buildAllFerns() {
-  // Clear any existing meshes
   while (fernsRoot.children.length) {
     const c = fernsRoot.children.pop();
     c.geometry?.dispose();
@@ -456,25 +434,22 @@ function buildAllFerns() {
   for (let i = 0; i < subdivisionList.length; i++) {
     const sub = subdivisionList[i];
 
-    // CSV name -> normalized topo key (Option A uses topo-space anchors)
     const topoKey = NAME_ALIASES[norm(sub)] ?? norm(sub);
 
-    // Current time slice
     const y = yearList[yearIndex] ?? Number(dataBySubdivision.get(sub)?.[0]?.[YEAR_COL]);
     const m = MONTHS[monthIndex];
     const v = valueFor(sub, y, m);
 
-    // Position & scale from anchors/overrides
     const anchor = anchors.get(topoKey);
     const pos    = anchor ? anchor.clone() : new THREE.Vector3(0, 0, 0);
     const sc     = (scaleBySubdivision.get(topoKey) ?? DEFAULT_SCALE);
 
     if (!anchor) missing++;
 
-    // Build the fern
+    // Build fern
     const mesh = createFernMesh(v, pos, sc);
-    mesh.userData.subdivision = sub;      // original CSV label (nice for UI)
-    mesh.userData.key = topoKey;          // normalized topo key (for lookups)
+    mesh.userData.subdivision = sub;      
+    mesh.userData.key = topoKey;          
     fernsRoot.add(mesh);
     fernMeshes.push(mesh);
   }
@@ -508,18 +483,17 @@ function updateAllFerns() {
   }
 }
 
-// -------------- TIME STEPPER --------------
+//-------------- TIME STEPPER --------------
 function step(now) {
   if (now - lastTime >= tickMs && yearList.length) {
     lastTime = now;
-    monthIndex = (monthIndex + 1) % MONTHS.length;  // keep looping months only
-    // DO NOT change yearIndex here
+    monthIndex = (monthIndex + 1) % MONTHS.length;  
     updateAllFerns();
     updateTimelineIndicator();
   }
 }
 
-// -------------- RESIZE / CAMERA --------------
+//-------------- RESIZE / CAMERA --------------
 function onResize() {
   const w = window.innerWidth;
   const h = window.innerHeight;
@@ -535,19 +509,17 @@ function onResize() {
     camera.updateProjectionMatrix();
   }
 
-  rebuildMap();          // also rebuild anchors
+  rebuildMap();          
   renderer.render(scene, camera);
   updateTimelineIndicator();
 
 }
 
 //-------------TIMELINE AND YEAR SELECT--------------
-// --- UI: Year select ---
 function buildYearSelect() {
   const sel = document.getElementById('yearSelect');
   if (!sel) return;
 
-  // clear and fill
   sel.innerHTML = '';
   yearList.forEach(y => {
     const opt = document.createElement('option');
@@ -556,30 +528,26 @@ function buildYearSelect() {
     sel.appendChild(opt);
   });
 
-  // default to last (most recent) year
   yearIndex = Math.max(0, yearList.length - 1);
   sel.value = String(yearList[yearIndex]);
 
-  // on change: update the chosen year (months keep looping)
   sel.addEventListener('change', () => {
     const v = Number(sel.value);
     const idx = yearList.indexOf(v);
     if (idx !== -1) {
       yearIndex = idx;
       updateAllFerns();
-      // keep the month where it is; just reflect it on the timeline
       updateTimelineIndicator();
     }
   });
 }
 
-// --- UI: Timeline ---
 function buildTimeline() {
   const bar    = document.getElementById('timelineBar');
   const labels = document.getElementById('timelineLabels');
   if (!bar || !labels) return;
 
-  // Build 12 segments
+  //Build 12 segments
   bar.innerHTML = '';
   labels.innerHTML = '';
   MONTHS.forEach((m, i) => {
@@ -610,13 +578,13 @@ function updateTimelineIndicator() {
 
   const w = container.clientWidth;
   const step = w / MONTHS.length;
-  // center the indicator in the active month segment
+  //center the indicator in the active month segment
   const x = step * monthIndex + step / 2;
   indicator.style.left = `${Math.round(x)}px`;
 }
 
 
-// -------------- MAIN --------------
+//-------------- MAIN --------------
 (async function init() {
   try {
     geojson = await loadBoundaries(FILE_URL);
@@ -626,7 +594,7 @@ function updateTimelineIndicator() {
     hud.innerHTML = 'Failed to load <code>' + FILE_URL + '</code>. Make sure a dev server is running and the file exists.';
     return;
   }
-  // Load rainfall in parallel
+  //Load rainfall in parallel
   try {
     const rows = await loadCSVRows(CSV_URL);
     ingestRainRows(rows);
@@ -635,7 +603,7 @@ function updateTimelineIndicator() {
   }
 
   window.addEventListener('resize', onResize);
-  onResize(); // builds map + anchors (and snaps ferns if already present)
+  onResize(); 
   animate();
 })();
 
